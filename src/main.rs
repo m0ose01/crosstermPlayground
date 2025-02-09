@@ -8,20 +8,23 @@ use crossterm::{
     terminal,
 };
 
-fn main() -> std::io::Result<()> {
+use ndarray::{Array, Ix2};
+
+fn main() -> io::Result<()> {
     let mut stdout = io::stdout();
     terminal::enable_raw_mode()?;
     stdout
         .queue(terminal::EnterAlternateScreen)?
-        .queue(cursor::MoveTo(0, 0))?
-        .queue(cursor::Hide)?
         .queue(terminal::Clear(terminal::ClearType::All))?
-        .queue(SetForegroundColor(Color::DarkRed))?
-        .queue(SetBackgroundColor(Color::DarkGrey))?
-        .queue(Print("hello, world\n"))?
-        .queue(ResetColor)?;
+        .queue(cursor::MoveTo(0, 0))?
+        .queue(cursor::Hide)?;
 
     stdout.flush()?;
+
+    let size = terminal::size()?;
+    let mut screen = ScreenBuffer::new([size.0 as usize, size.1 as usize]);
+    screen.buffer.map_mut(|col| *col = 128);
+    screen.draw(&mut stdout)?;
 
     loop {
         match event::read()? {
@@ -38,4 +41,32 @@ fn main() -> std::io::Result<()> {
     terminal::disable_raw_mode()?;
 
     Ok(())
+}
+
+struct ScreenBuffer {
+    buffer: Array<u8, Ix2>,
+}
+
+impl ScreenBuffer {
+    fn new(size: [usize; 2]) -> Self {
+        Self {
+            buffer: Array::<u8, Ix2>::zeros(size),
+        }
+    }
+
+    fn draw(&self, stdout: &mut io::Stdout) -> io::Result<()> {
+        for row in self.buffer.columns() {
+            for col in row {
+                if *col > 127 {
+                    stdout.queue(Print('.'))?;
+                } else {
+                    stdout.queue(Print(' '))?;
+                }
+            }
+            stdout
+                .queue(cursor::MoveToNextLine(1))?;
+        }
+        stdout.flush()?;
+        Ok(())
+    }
 }
