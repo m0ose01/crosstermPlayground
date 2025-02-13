@@ -64,9 +64,11 @@ impl ScreenBuffer {
         for row in self.buffer.columns() {
             for col in row {
                 if *col > 127 {
-                    stdout.queue(style::Print('.'))?;
+                    stdout.queue(style::Print(' '))?;
+                    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
                 } else {
                     stdout.queue(style::Print(' '))?;
+                    stdout.queue(style::SetBackgroundColor(style::Color::White))?;
                 }
             }
             stdout
