@@ -1,14 +1,14 @@
 use std::io::{self, Write};
 
 use crossterm::{
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style,
     event,
     cursor,
     QueueableCommand,
     terminal,
 };
 
-use ndarray::{Array, Ix2};
+use ndarray::{Array, Ix2, AssignElem};
 
 fn main() -> io::Result<()> {
     let mut stdout = io::stdout();
@@ -17,18 +17,23 @@ fn main() -> io::Result<()> {
         .queue(terminal::EnterAlternateScreen)?
         .queue(terminal::Clear(terminal::ClearType::All))?
         .queue(cursor::MoveTo(0, 0))?
+        .queue(event::EnableMouseCapture)?
         .queue(cursor::Hide)?;
 
     stdout.flush()?;
 
     let size = terminal::size()?;
     let mut screen = ScreenBuffer::new([size.0 as usize, size.1 as usize]);
-    screen.buffer.map_mut(|col| *col = 128);
+    screen.buffer.fill(127);
     screen.draw(&mut stdout)?;
 
     loop {
         match event::read()? {
-            event::Event::Key(event) => {println!("{:?}", event);break;},
+            event::Event::Key(_) => {break;},
+            event::Event::Mouse(e) => if let event::MouseEventKind::Drag(_) = e.kind {
+                screen.buffer.get_mut((e.column as usize, e.row as usize)).unwrap().assign_elem(128);
+                screen.draw(&mut stdout)?;
+            },
             _ => (),
         }
     }
@@ -55,12 +60,13 @@ impl ScreenBuffer {
     }
 
     fn draw(&self, stdout: &mut io::Stdout) -> io::Result<()> {
+        stdout.queue(cursor::MoveTo(0, 0))?;
         for row in self.buffer.columns() {
             for col in row {
                 if *col > 127 {
-                    stdout.queue(Print('.'))?;
+                    stdout.queue(style::Print('.'))?;
                 } else {
-                    stdout.queue(Print(' '))?;
+                    stdout.queue(style::Print(' '))?;
                 }
             }
             stdout
